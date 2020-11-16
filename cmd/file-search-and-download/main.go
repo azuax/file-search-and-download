@@ -54,12 +54,15 @@ func downloadFile(URL string, wg *sync.WaitGroup, c chan string) {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	fmt.Println("Downloading", fName)
+	bytes, err := io.Copy(out, resp.Body)
+	fmt.Printf("Copied %.2f KB in file %s\n", float32(bytes/(1024)), fName)
 	if err != nil {
 		log.Println("Can't save the file", fName)
+		return
 	}
-	log.Println("Downloaded", fName)
 	c <- fName
+	return
 }
 
 func main() {
@@ -72,7 +75,6 @@ func main() {
 	}
 
 	wg := new(sync.WaitGroup)
-	cResult := make(chan string)
 
 	q := fmt.Sprintf(
 		"site:%s && filetype:%s && instreamset:(url title):%s",
@@ -82,16 +84,16 @@ func main() {
 	)
 	bingURL := fmt.Sprintf("http://www.bing.com/search?q=%s", url.QueryEscape(q))
 
-	fmt.Println(bingURL)
-
 	fToD := filesToDownload(bingURL)
 
 	fmt.Printf("Files to download: %d\n", len(fToD))
+	cResult := make(chan string, len(fToD))
 	for _, l := range fToD {
 		wg.Add(1)
 		go downloadFile(l, wg, cResult)
 	}
 	wg.Wait()
+	close(cResult)
 	fmt.Println("List of downloaded files: ")
 	for fName := range cResult {
 		fmt.Printf("\t-%s\n", fName)
